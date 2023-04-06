@@ -5,18 +5,18 @@ rm( list = ls())
 # load libraries
 preq = c( "dplyr", "ggplot2", "ggfortify", "readxl", "readstata13", 
           "readr", "stats", "tidyverse", "haven", "Matrix", "foreign")
-#for (y in preq) install.packages(y, dep = TRUE)
+for (y in preq) install.packages(y, dep = TRUE)
 sapply(preq, library, character.only=T)
 
 # Set the directory where the files are located
 setwd("G:/My\ Drive/Documents/R_github/underreporting")
 
 # Create a list of the file names
-files <- list.files(path = "./Data/IHME/",  pattern = ".csv")
+files <- list.files(path = "../Data/IHME/",  pattern = ".csv")
 
 # Use grep() function to select strings starting with "myfile"
 selected <- files[grep("^data_download", files)]
-selected <- week <- paste( "./Data/IHME/", selected, sep="")
+selected <- week <- paste( "../Data/IHME/", selected, sep="")
 # View the selected strings
 selected
 
