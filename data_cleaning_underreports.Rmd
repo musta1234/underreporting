@@ -42,52 +42,41 @@ data_stack <- do.call(rbind, data_list)
 View(data_stack)
 ```
 
-```{r IHME_clean, echo=TRUE}
-# need to make sure Georgia, USA is not mixed up with Republic of Georgia
-data_stack[["location_name"]] %>% unique() %>% sort() %>% table() %>% View()
-# Calculate column C = A/B only if A and B are both non-missing and not zero
-data_under <- data_stack %>%
-  mutate(
-    under_report = 
-      ifelse(!is.na(inf_mean) & inf_mean != 0 & !is.na(cases_mean) & 
-        cases_mean != 0, cases_mean/inf_mean, NA)
-    ) %>% 
 
- # Create a column for the 7 day moving average of sales for each location using zoo::rollapplyr
+```{r under_report, echo=TRUE}
+#calculate under_reports by country and drop missing values
+data_under <- 
+  data_stack %>%
+# Create a column for the 7 day moving average of sales for each location using zoo::rollapplyr
   group_by(location_name) %>%
   mutate(
     inf_mean_7d = rollapplyr(inf_mean, 7, mean, fill = NA, align = "right"),
     cases_mean_7d = rollapplyr(cases_mean, 7, mean, fill = NA, align = "right")
     ) %>%
   select(location_name, date, inf_mean, inf_mean_7d, cases_mean, cases_mean_7d) %>%
-  filter((inf_mean) != 0) %>%
-  #filter((cases_mean + inf_mean) == 0, na.rm = TRUE) %>%
-  View()
-
- # Create a column for the 7 day moving average of sales for each location
-df_ma <- df %>%
-  group_by(location) %>%
-  mutate(ma_sales = zoo::rollapplyr(sales, 7, mean, fill = NA, align = "right"))
-
-# View the data frame with the new column
-df_ma
- data_under %>%
-  select(location_name, date, cases_mean, inf_mean) %>% 
-  filter(inf_mean == 0) %>%
-  select(location_name) %>%
-  #table() %>% 
-  View()
-
-  summarize(missing_cases = sum(cases_mean ==0),
-            missing_inf = sum(inf_mean ==0) )
-
-View(x)
+ #drop weeks with 0 predicted cases, mostly from March and April 2020 in some islands
+  filter(inf_mean_7d != 0 & !is.na(inf_mean_7d) ) %>% 
+  ungroup() %>%
+# Calculate column C = A/B only if A and B are both non-missing and not zero
+  mutate(
+    under_report = 
+      ifelse(!is.na(inf_mean_7d) & inf_mean_7d != 0 & !is.na(cases_mean_7d)  
+        # & cases_mean_7d != 0, #keeping weeks with )observed but >0 predicted
+        , cases_mean_7d/inf_mean_7d, NA)
+    ) 
+  #%>%
+  # select(under_report) %>%   filter(under_report <1) %>% unlist() %>% sort() %>%
+  #hist(., freq=TRUE, breaks = 1000)
+```
 
 
-# Count missing values in each column
-missing_counts <- df %>%
-  summarize_all(~sum(is.na(.)))
 
+
+
+
+
+```{r IHME_clean, echo=TRUE}
+# need to make sure Georgia, USA is not mixed up with Republic of Georgia
 data_under %>% 
   #filter(grepl('Macao', location_name)) %>% 
   select(location_name) %>% 
