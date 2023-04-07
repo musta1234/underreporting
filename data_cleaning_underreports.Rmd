@@ -13,7 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 rm( list = ls())
 # load libraries
 preq = c( "dplyr", "ggplot2", "ggfortify", "readxl", "readstata13", 
-          "readr", "stats", "tidyverse", "haven", "Matrix", "foreign")
+          "readr", "stats", "tidyverse", "haven", "Matrix", "foreign", "zoo")
 #for (y in preq) install.packages(y, dep = TRUE)
 sapply(preq, library, character.only=T)
 
@@ -42,27 +42,66 @@ data_stack <- do.call(rbind, data_list)
 View(data_stack)
 ```
 
-##Clean up IHME location names
 ```{r IHME_clean, echo=TRUE}
 # need to make sure Georgia, USA is not mixed up with Republic of Georgia
-data_stack[["location_name"]] %>% unique() %>% sort()
+data_stack[["location_name"]] %>% unique() %>% sort() %>% table() %>% View()
 # Calculate column C = A/B only if A and B are both non-missing and not zero
 data_under <- data_stack %>%
   mutate(
     under_report = 
-      ifelse(
-        !is.na(inf_mean) & inf_mean != 0 & !is.na(cases_mean) & 
-        cases_mean != 0, inf_mean/cases_mean, NA)
-    )
+      ifelse(!is.na(inf_mean) & inf_mean != 0 & !is.na(cases_mean) & 
+        cases_mean != 0, cases_mean/inf_mean, NA)
+    ) %>% 
+
+ # Create a column for the 7 day moving average of sales for each location using zoo::rollapplyr
+  group_by(location_name) %>%
+  mutate(
+    inf_mean_7d = rollapplyr(inf_mean, 7, mean, fill = NA, align = "right"),
+    cases_mean_7d = rollapplyr(cases_mean, 7, mean, fill = NA, align = "right")
+    ) %>%
+  select(location_name, date, inf_mean, inf_mean_7d, cases_mean, cases_mean_7d) %>%
+  filter((inf_mean) != 0) %>%
+  #filter((cases_mean + inf_mean) == 0, na.rm = TRUE) %>%
+  View()
+
+ # Create a column for the 7 day moving average of sales for each location
+df_ma <- df %>%
+  group_by(location) %>%
+  mutate(ma_sales = zoo::rollapplyr(sales, 7, mean, fill = NA, align = "right"))
+
+# View the data frame with the new column
+df_ma
+ data_under %>%
+  select(location_name, date, cases_mean, inf_mean) %>% 
+  filter(inf_mean == 0) %>%
+  select(location_name) %>%
+  #table() %>% 
+  View()
+
+  summarize(missing_cases = sum(cases_mean ==0),
+            missing_inf = sum(inf_mean ==0) )
+
+View(x)
+
+
+# Count missing values in each column
+missing_counts <- df %>%
+  summarize_all(~sum(is.na(.)))
+
+data_under %>% 
+  #filter(grepl('Macao', location_name)) %>% 
+  select(location_name) %>% 
+  #View() %>%
+  #remove everything in parentheses
+  mutate(location_clean = gsub("\\ \\(.*\\)", "", location_name)) %>%
+  mutate(location_clean = gsub("^Macao.*", "Macao", location_name)) %>%
+  select(location_clean) %>% table() %>% View()
 
 
 ```
+## Group IHME data by location and calculate summary statistics
 ```{r summary_table}
-To do:
-# 1)  for each location
-# 2) summarize Max date, min date, mean, median, max, min, upper and lower quartile for each location
-# 3) Generate table with #1 and #2 above
-# Group the data by location and calculate summary statistics
+# 1) for each location summarize Max date, min date, mean, median, max, min, upper and lower quartile
 summary_table <- data_under %>% 
   filter(!is.na(inf_mean))
   group_by(location_name) %>%
@@ -81,6 +120,7 @@ summary_table <- data_under %>%
 # View the resulting summary table
 View(summary_table)
 ```
+
 
 ## Including Plots
 
