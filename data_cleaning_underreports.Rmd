@@ -42,12 +42,12 @@ data_stack <- do.call(rbind, data_list)
 View(data_stack)
 ```
 
-
+##Calculate underreporting as a percentage
 ```{r under_report, echo=TRUE}
 #calculate under_reports by country and drop missing values
 data_under <- 
   data_stack %>%
-# Create a column for the 7 day moving average of sales for each location using zoo::rollapplyr
+# Create a column for the 7 day moving average cases/inf by location using zoo::rollapplyr
   group_by(location_name) %>%
   mutate(
     inf_mean_7d = rollapplyr(inf_mean, 7, mean, fill = NA, align = "right"),
@@ -58,24 +58,48 @@ data_under <-
   filter(inf_mean_7d != 0 & !is.na(inf_mean_7d) ) %>% 
   ungroup() %>%
 # Calculate column C = A/B only if A and B are both non-missing and not zero
-  mutate(
-    under_report = 
-      ifelse(!is.na(inf_mean_7d) & inf_mean_7d != 0 & !is.na(cases_mean_7d)  
-        # & cases_mean_7d != 0, #keeping weeks with )observed but >0 predicted
-        , cases_mean_7d/inf_mean_7d, NA)
-    ) 
-  #%>%
-  # select(under_report) %>%   filter(under_report <1) %>% unlist() %>% sort() %>%
+  mutate(under_report = cases_mean_7d/inf_mean_7d) 
+#leaving old code below
+      #ifelse(!is.na(inf_mean_7d) & inf_mean_7d != 0 & !is.na(cases_mean_7d),  
+        # & cases_mean_7d != 0, 
+        #cases_mean_7d/inf_mean_7d) 
+  #%>% select(under_report) %>% filter(under_report <1) %>% unlist() %>% sort() %>%
   #hist(., freq=TRUE, breaks = 1000)
 ```
 
+##Load World bank data
+```{r location_clean, echo=TRUE}
+# Define the file path and name and load "Groups" tab into a data frame
+file_WB <- "../Data/WorldBank/CLASS.xlsx"
+country_groups <- read_excel(file_WB, sheet = "Groups")
+# View the imported data
+View(country_groups)
+
+# check overlaps
+# need a clean list of countries by region using world bank format
+# a clean list of US states
+
+location_vec <- data_under[["location_name"]] %>% unique()
 
 
+world <- 
+  country_groups %>% 
+	filter(GroupName == "World") %>%
+	select(CountryName) %>%
+	as.vector() %>%
+  unlist()
+
+typeof(world)
+
+length(world)
+length(location_vec)
+intersect(world, location_vec) %>% length()
+setdiff(world, location_vec) %>% sort() %>% View()
 
 
+```
 
-
-```{r IHME_clean, echo=TRUE}
+```{r location_clean, echo=TRUE}
 # need to make sure Georgia, USA is not mixed up with Republic of Georgia
 data_under %>% 
   #filter(grepl('Macao', location_name)) %>% 
@@ -83,10 +107,8 @@ data_under %>%
   #View() %>%
   #remove everything in parentheses
   mutate(location_clean = gsub("\\ \\(.*\\)", "", location_name)) %>%
-  mutate(location_clean = gsub("^Macao.*", "Macao", location_name)) %>%
+  mutate(location_clean = gsub("^Macao.*", "Macao", location_clean)) %>%
   select(location_clean) %>% table() %>% View()
-
-
 ```
 ## Group IHME data by location and calculate summary statistics
 ```{r summary_table}
