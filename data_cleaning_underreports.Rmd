@@ -4,7 +4,7 @@ author: "Mustapha Mustapha"
 date: "2023-04-06"
 output: html_document
 ---
-## This is a document that imports uunderreports data from IHME
+## This is a script that imports underreports data from IHME
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -12,17 +12,19 @@ knitr::opts_chunk$set(echo = TRUE)
 # clear R's brain
 rm( list = ls())
 # load libraries
-preq = c( "dplyr", "ggplot2", "ggfortify", "readxl", "readstata13", 
-          "readr", "stats", "tidyverse", "haven", "Matrix", "foreign", "zoo")
+preq = c( "dplyr", "ggplot2", "ggfortify", "readxl", "readstata13", "readr", 
+          "stats", "tidyverse", "haven", "Matrix", "foreign", "zoo", "openxlsx")
 #for (y in preq) install.packages(y, dep = TRUE)
 sapply(preq, library, character.only=T)
 
 # Set the directory where the files are located
-setwd("G:/My\ Drive/Documents/R_github/underreporting")
+setwd("G:/My\ Drive/Documents/R_github/underreporting/")
+#source("myfunctions.R")
 ```
 
 ##Import IHME Data
 ```{r IHME_import, echo=TRUE}
+rm( list = ls())
 # Create a list of the file names
 files <- list.files(path = "../Data/IHME/",  pattern = ".csv")
 # Use grep() function to select strings starting with "myfile"
@@ -32,14 +34,17 @@ selected <- week <- paste( "../Data/IHME/", selected, sep="")
 selected
 # Read in the files and store in a list
 data_list <- lapply(selected, read.csv)
-View(data_list[[1]])
+#View(data_list[[1]])
 #lapply(data_list, colnames)
 #check if all columns are identical
 all(colnames(data_list[[1]]) == colnames(data_list[[2]])) ==
   all(colnames(data_list[[1]]) == colnames(data_list[[3]]))
 # Bind the data frames into a single data frame
 data_stack <- do.call(rbind, data_list)
-View(data_stack)
+#View(data_stack)
+regions <- #load a curated list of countries by location
+  (read.xlsx("location_list.xlsx", sheet = "Regions"))
+
 ```
 
 ##Calculate underreporting as a percentage
@@ -58,30 +63,88 @@ data_under <-
   filter(inf_mean_7d != 0 & !is.na(inf_mean_7d) ) %>% 
   ungroup() %>%
 # Calculate column C = A/B only if A and B are both non-missing and not zero
-  mutate(under_report = cases_mean_7d/inf_mean_7d) 
-#leaving old code below
-      #ifelse(!is.na(inf_mean_7d) & inf_mean_7d != 0 & !is.na(cases_mean_7d),  
-        # & cases_mean_7d != 0, 
-        #cases_mean_7d/inf_mean_7d) 
-  #%>% select(under_report) %>% filter(under_report <1) %>% unlist() %>% sort() %>%
+  mutate(under_report = cases_mean_7d/inf_mean_7d) %>%
+# convert date column to year-quarter format
+  mutate(year_quarter= paste0(year(date), "Q", quarter(date)))
   #hist(., freq=TRUE, breaks = 1000)
+
+#Add region designation
+data_regions <- 
+  left_join(data_under, regions, by="location_name") %>% 
+  filter(!is.na(region))
+
 ```
 
-##Load World bank data
-```{r location_clean, echo=TRUE}
-# Define the file path and name and load "Groups" tab into a data frame
-file_WB <- "../Data/WorldBank/CLASS.xlsx"
-country_groups <- read_excel(file_WB, sheet = "Groups")
+```{r summarize_ihme, echo=TRUE}
+#generate summary stats by one or two grouping variables
+summarize_ihme <- function(ihme_data, var1, var2 = ""){
+  ihme_data %>%
+  group_by({{var1}}, {{var2}}) %>%
+  summarize(
+    n = sum(!is.na(under_report)),
+    min_date = min(as.Date(date), na.rm = TRUE),
+    max_date = max(as.Date(date), na.rm = TRUE),
+    mean = mean(under_report, na.rm = TRUE),
+    max = max(under_report, na.rm = TRUE),
+    min = min(under_report, na.rm = TRUE),
+    median = median(under_report, na.rm = TRUE),
+    upper_quartile = quantile(under_report, 0.75,na.rm = TRUE),
+    lower_quartile = quantile(under_report, 0.25, na.rm = TRUE)
+  )
+}
+
+# calculate summary stats for region and country and by quarter
+stats_region <- summarize_ihme(data_regions, region)
+stats_loc <- summarize_ihme(data_regions, location_name)
+stats_loc_qtr <- summarize_ihme(data_regions, location_name, year_quarter)
+stats_region_qtr <- summarize_ihme(data_regions, region, year_quarter)
+
+#export summary stats
+for (name in c("stats_region", "stats_loc", "stats_loc_qtr", "stats_region_qtr")){
+  df <- get(name)
+  write.xlsx(df, file = paste0(name, ".xlsx"), rowNames = FALSE, colNames = TRUE)
+}
+
+```
+
+## Make line plots and barcharts
+```{r plots, echo=TRUE}
+#1 Create line plots for each country and #2) save as pdfs
+# create plot
+df <- data_regions %>% filter(location_name == "United States of America")
+ggplot(df, 
+       aes(year_quarter, under_report)) + 
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+
+
+
+  geom_line() +
+  labs(x = "Date", y = "Under reports for USA") +
+  ggtitle("Number of cases over time")
+
+ggplot(df, 
+       aes(x = date, y = under_report)) + 
+  geom_line() +
+  labs(x = "Date", y = "Under reports for USA") +
+  ggtitle("Number of cases over time")
+
+
+```
+
+
+##Older code
+```{r backup, echo=TRUE}
 # View the imported data
 View(country_groups)
 
 # check overlaps
 # need a clean list of countries by region using world bank format
 # a clean list of US states
-
+#All location names
 location_vec <- data_under[["location_name"]] %>% unique()
 
-
+#All countries from World Bank
 world <- 
   country_groups %>% 
 	filter(GroupName == "World") %>%
@@ -89,13 +152,25 @@ world <-
 	as.vector() %>%
   unlist()
 
-typeof(world)
-
-length(world)
+# How many countries are correctly spelt? 
 length(location_vec)
-intersect(world, location_vec) %>% length()
-setdiff(world, location_vec) %>% sort() %>% View()
+intersect(world, location_vec) %>% length() #145
 
+# A list of poor spellings and countries that do not have a model
+world_mismatch <- 
+  setdiff(world, location_vec) %>% sort() %>% as.data.frame()
+
+location_mismatch <- 
+  setdiff(location_vec, world) %>% sort() %>% as.data.frame()
+
+#remove US states
+location_mismatch2 <- setdiff(location_mismatch[[1]], as.data.frame(state.name)[[1]]) %>% as.data.frame()
+
+
+#####################
+length(state.name)
+
+setdiff(as.data.frame(state.name)[[1]], location_mismatch[[1]])
 
 ```
 

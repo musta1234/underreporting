@@ -57,7 +57,7 @@ data_under <- data_stack %>%
 # 3) Generate table with #1 and #2 above
 # Group the data by location and calculate summary statistics
 summary_table <- data_under %>%
-  group_by(location_name) %>%
+  group_by( {{ location_name }}) %>%
   summarize(
     n = sum(!is.na(inf_mean)),
     min_date = min(as.Date(date), na.rm = TRUE),
