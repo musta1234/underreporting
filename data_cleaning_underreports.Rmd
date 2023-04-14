@@ -107,6 +107,39 @@ for (name in c("stats_region", "stats_loc", "stats_loc_qtr", "stats_region_qtr")
 
 ```
 
+##Export country level and regional data for excel
+```{r under_report, echo=TRUE}
+#save big file
+write.xlsx(data_regions, 
+             file = paste0("./output/" ,"bigfile", ".xlsx"),
+             colNames = TRUE,
+             rowNames = FALSE)
+
+places <- sort(as.vector(data_regions$location_name)) %>% unique()
+# write excel files for each country
+for (place in places){
+  data_regions %>% 
+  filter(location_name == place) %>% 
+  write.xlsx(., 
+             file = paste0("./output/" ,place, ".xlsx"),
+             colNames = TRUE,
+             rowNames = FALSE)
+}
+
+# write excel files for each continent
+##Need to summarize by day first
+for (contiaddnent in 
+     unique(as.vector(data_regions$region))){
+  data_regions %>% 
+  filter(region == continent) %>% 
+  write.xlsx(., 
+             file = paste0("./output/" ,continent, ".xlsx"),
+             colNames = TRUE,
+             rowNames = FALSE)
+}
+
+
+```
 ## Make line plots and barcharts
 ```{r plots, echo=TRUE}
 #1 Create line plots for each country and #2) save as pdfs
