@@ -56,14 +56,17 @@ data_under <-
   group_by(location_name) %>%
   mutate(
     inf_mean_7d = rollapplyr(inf_mean, 7, mean, fill = NA, align = "right"),
-    cases_mean_7d = rollapplyr(cases_mean, 7, mean, fill = NA, align = "right")
+    daily_cases_7d = rollapplyr(daily_cases, 7, mean, fill = NA, align = "right")
     ) %>%
-  select(location_name, date, inf_mean, inf_mean_7d, cases_mean, cases_mean_7d) %>%
+  select(location_name, date, inf_mean, inf_mean_7d, daily_cases, daily_cases_7d) %>%
  #drop weeks with 0 predicted cases, mostly from March and April 2020 in some islands
   filter(inf_mean_7d != 0 & !is.na(inf_mean_7d) ) %>% 
   ungroup() %>%
 # Calculate column C = A/B only if A and B are both non-missing and not zero
-  mutate(under_report = cases_mean_7d/inf_mean_7d) %>%
+  # denominator is 7d average
+  mutate(under_report_7d = daily_cases_7d/inf_mean_7d) %>% 
+  # denominator is not averaged
+  mutate(under_report = daily_cases_7d/inf_mean) %>%
 # convert date column to year-quarter format
   mutate(year_quarter= paste0(year(date), "Q", quarter(date)))
   #hist(., freq=TRUE, breaks = 1000)
@@ -71,25 +74,38 @@ data_under <-
 #Add region designation
 data_regions <- 
   left_join(data_under, regions, by="location_name") %>% 
-  filter(!is.na(region))
+  #keep only countries in the 'regions' dataset
+  filter(!is.na(region)) 
 
 ```
 
 ```{r summarize_ihme, echo=TRUE}
+stats_country_ranks <- 
+  data_regions %>% group_by(location_name) %>%
+  summarize(
+        na_daily_cases = sum(is.na(daily_cases)),
+        zero_daily_cases = sum(daily_cases==0, na.rm = TRUE)
+        ) %>% 
+  mutate(nazero_daily_cases = na_daily_cases - 110 + zero_daily_cases) %>%
+  #arrange by descending missingness score, nazero_daily_cases
+  arrange(desc(nazero_daily_cases)) %>%
+  mutate(completeness_rank = rank(nazero_daily_cases, ties.method = "random"))
+
 #generate summary stats by one or two grouping variables
 summarize_ihme <- function(ihme_data, var1, var2 = ""){
   ihme_data %>%
-  group_by({{var1}}, {{var2}}) %>%
-  summarize(
-    n = sum(!is.na(under_report)),
-    min_date = min(as.Date(date), na.rm = TRUE),
-    max_date = max(as.Date(date), na.rm = TRUE),
-    mean = mean(under_report, na.rm = TRUE),
-    max = max(under_report, na.rm = TRUE),
-    min = min(under_report, na.rm = TRUE),
-    median = median(under_report, na.rm = TRUE),
-    upper_quartile = quantile(under_report, 0.75,na.rm = TRUE),
-    lower_quartile = quantile(under_report, 0.25, na.rm = TRUE)
+    filter(!is.na(daily_cases_7d)) %>% 
+    group_by({{var1}}, {{var2}}) %>% 
+    summarize(
+      n = sum(!is.na(under_report)),
+      min_date = min(as.Date(date), na.rm = TRUE),
+      max_date = max(as.Date(date), na.rm = TRUE),
+      mean = mean(under_report, na.rm = TRUE),
+      max = max(under_report, na.rm = TRUE),
+      min = min(under_report, na.rm = TRUE),
+      median = median(under_report, na.rm = TRUE),
+      upper_quartile = quantile(under_report, 0.75,na.rm = TRUE),
+      lower_quartile = quantile(under_report, 0.25, na.rm = TRUE)
   )
 }
 
@@ -100,7 +116,7 @@ stats_loc_qtr <- summarize_ihme(data_regions, location_name, year_quarter)
 stats_region_qtr <- summarize_ihme(data_regions, region, year_quarter)
 
 #export summary stats
-for (name in c("stats_region", "stats_loc", "stats_loc_qtr", "stats_region_qtr")){
+for (name in c("stats_region", "stats_loc", "stats_loc_qtr", "stats_region_qtr", "stats_country_ranks")){
   df <- get(name)
   write.xlsx(df, file = paste0(name, ".xlsx"), rowNames = FALSE, colNames = TRUE)
 }
@@ -128,7 +144,7 @@ for (place in places){
 
 # write excel files for each continent
 ##Need to summarize by day first
-for (contiaddnent in 
+for (continent in 
      unique(as.vector(data_regions$region))){
   data_regions %>% 
   filter(region == continent) %>% 
@@ -240,6 +256,31 @@ summary_table <- data_under %>%
 View(summary_table)
 ```
 
+## Calculate breakpoints for time series data
+```{r summary_table}
+#To conduct statistical methods detection of breakpoints in time series data using Chow test, CUSUM test, and Pettitt's test, you can use the strucchange package in R. Here's an example code for each of the three methods:
+
+#Chow test:
+library(strucchange)
+# create a time series object
+ts_data <- ts(your_data, start = start_year, frequency = 12)
+
+# perform Chow test
+chow_test <- breakpoints(ts_data ~ 1)
+summary(chow_test)
+
+#CUSUM test:
+# perform CUSUM test
+cusum_test <- sctest(ts_data ~ 1, type = "CUSUM")
+summary(cusum_test)
+
+#Pettitt's test:
+# perform Pettitt's test
+pettitt_test <- sctest(ts_data ~ 1, type = "Pettitt")
+summary(pettitt_test)
+#Note that in the above code, your_data should be replaced with the name of your time series data, and start_year should be replaced with the start year of your time series. Also, you can adjust the frequency argument depending on the frequency of your time series (12 if it is monthly, 4 if it is quarterly, etc.).
+
+```
 
 ## Including Plots
 
