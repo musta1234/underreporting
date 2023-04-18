@@ -55,18 +55,16 @@ data_under <-
 # Create a column for the 7 day moving average cases/inf by location using zoo::rollapplyr
   group_by(location_name) %>%
   mutate(
-    inf_mean_7d = rollapplyr(inf_mean, 7, mean, fill = NA, align = "right"),
+    #inf_mean_7d = rollapplyr(inf_mean, 7, mean, fill = NA, align = "right"),
     daily_cases_7d = rollapplyr(daily_cases, 7, mean, fill = NA, align = "right")
     ) %>%
-  select(location_name, date, inf_mean, inf_mean_7d, daily_cases, daily_cases_7d) %>%
+  select(location_name, date, inf_mean, daily_cases, daily_cases_7d) %>%
  #drop weeks with 0 predicted cases, mostly from March and April 2020 in some islands
-  filter(inf_mean_7d != 0 & !is.na(inf_mean_7d) ) %>% 
+  #filter(inf_mean_7d != 0 & !is.na(inf_mean_7d) ) %>% 
   ungroup() %>%
-# Calculate column C = A/B only if A and B are both non-missing and not zero
-  # denominator is 7d average
-  mutate(under_report_7d = daily_cases_7d/inf_mean_7d) %>% 
-  # denominator is not averaged
-  mutate(under_report = daily_cases_7d/inf_mean) %>%
+# Calculate case ascertainment as reported cases (7day avg / inf_mean) after discussion with Hannah
+  # denominator is not average
+  mutate(case_ascetainment = daily_cases_7d/inf_mean) %>% 
 # convert date column to year-quarter format
   mutate(year_quarter= paste0(year(date), "Q", quarter(date)))
   #hist(., freq=TRUE, breaks = 1000)
@@ -97,15 +95,15 @@ summarize_ihme <- function(ihme_data, var1, var2 = ""){
     filter(!is.na(daily_cases_7d)) %>% 
     group_by({{var1}}, {{var2}}) %>% 
     summarize(
-      n = sum(!is.na(under_report)),
+      n = sum(!is.na(case_ascetainment)),
       min_date = min(as.Date(date), na.rm = TRUE),
       max_date = max(as.Date(date), na.rm = TRUE),
-      mean = mean(under_report, na.rm = TRUE),
-      max = max(under_report, na.rm = TRUE),
-      min = min(under_report, na.rm = TRUE),
-      median = median(under_report, na.rm = TRUE),
-      upper_quartile = quantile(under_report, 0.75,na.rm = TRUE),
-      lower_quartile = quantile(under_report, 0.25, na.rm = TRUE)
+      mean = mean(case_ascetainment, na.rm = TRUE),
+      max = max(case_ascetainment, na.rm = TRUE),
+      min = min(case_ascetainment, na.rm = TRUE),
+      median = median(case_ascetainment, na.rm = TRUE),
+      upper_quartile = quantile(case_ascetainment, 0.75,na.rm = TRUE),
+      lower_quartile = quantile(case_ascetainment, 0.25, na.rm = TRUE)
   )
 }
 
@@ -125,6 +123,14 @@ for (name in c("stats_region", "stats_loc", "stats_loc_qtr", "stats_region_qtr",
 
 ##Export country level and regional data for excel
 ```{r under_report, echo=TRUE}
+#save big file
+write.csv(data_regions, 
+             file = paste0("./output/" ,"bigfile", ".csv"),
+             quote = TRUE,
+             na = "",
+             row.names = FALSE,
+             col.names = TRUE)
+
 #save big file
 write.xlsx(data_regions, 
              file = paste0("./output/" ,"bigfile", ".xlsx"),
