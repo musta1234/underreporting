@@ -37,10 +37,43 @@ data_stack <- read.csv(selected)
 View(data_stack)
 names(data_stack) <- 
   c("location", "country_code", "Date", "infections_mean", "infections_lower", "infections_upper", "cases_mean_7d")
+data_stack["case_ascert"] = data_stack["cases_mean_7d"]/data_stack["infections_mean"]
 #regions <- #load a curated list of countries by location
 #  (read.xlsx("location_list.xlsx", sheet = "Regions"))
 
 ```
+
+
+```{r summarize_ihme, echo=TRUE}
+
+summary_table <- function(df) {
+  # Group the data frame by location
+  df_grouped <- df %>% 
+    group_by(location) %>% 
+  # Calculate the number of missing observations and zeros for each column
+
+    summarise_all(
+      list(
+        n_missing = ~sum(is.na(.)),
+        n_zeros = ~sum(. == 0)
+      )
+    )
+  
+  # Return the summary table
+  return(df_grouped)
+}
+
+
+summary_table_ihme <- summary_table(data_stack)
+write.csv(summary_table_ihme, file = "./output/summary_table_ihme.csv", row.names = FALSE, quote = TRUE)
+
+write.csv(data_stack, file = "./data_ihme.csv", row.names = FALSE, quote = TRUE)
+
+```
+
+
+
+
 
 ##Calculate underreporting as a percentage
 ```{r under_report, echo=TRUE}
@@ -49,11 +82,6 @@ data_under <-
   data_stack %>%
 # Create a column for the 7 day moving average cases/inf by location using zoo::rollapplyr
   group_by(location_name) %>%
-  mutate(
-    inf_mean_7d = rollapplyr(inf_mean, 7, mean, fill = NA, align = "right"),
-    daily_cases_7d = rollapplyr(daily_cases, 7, mean, fill = NA, align = "right")
-    ) %>%
-  select(location_name, date, inf_mean, inf_mean_7d, daily_cases, daily_cases_7d) %>%
  #drop weeks with 0 predicted cases, mostly from March and April 2020 in some islands
   filter(inf_mean_7d != 0 & !is.na(inf_mean_7d) ) %>% 
   ungroup() %>%
@@ -73,6 +101,9 @@ data_regions <-
   filter(!is.na(region)) 
 
 ```
+
+
+
 
 ```{r summarize_ihme, echo=TRUE}
 stats_country_ranks <- 
