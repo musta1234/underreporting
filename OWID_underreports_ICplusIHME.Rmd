@@ -24,7 +24,7 @@ setwd("G:/My\ Drive/Documents/R_github/underreporting/")
 
 ##Import IHME Data
 ```{r IHME_import, echo=TRUE}
-rm( list = ls())
+#rm( list = ls())
 # Create a list of the file names
 files <- list.files(path = "../Data/OurWorldInData/",  pattern = ".csv")
 # Use grep() function to select strings starting with "myfile"
@@ -33,19 +33,21 @@ selected <- paste( "../Data/OurWorldInData/", x, sep="")
 # View the selected strings
 selected
 # Read in the files and store in a list
-data_stack <- read.csv(selected)
+ihme_stack <- read.csv(selected)
 #View(data_stack)
-names(data_stack) <- 
+names(ihme_stack) <- 
   c("location", "country_code", "Date", "infections_mean", "infections_lower", "infections_upper", "cases_mean_7d")
-data_stack["case_ascert"] = data_stack["cases_mean_7d"]/data_stack["infections_mean"]
+ihme_stack["case_ascert"] = ihme_stack["cases_mean_7d"]/ihme_stack["infections_mean"]
 #regions <- #load a curated list of countries by location
 #  (read.xlsx("location_list.xlsx", sheet = "Regions"))
+
+names(ihme_stack) <- paste0("ihme_", names(ihme_stack))
 
 ```
 
 ##Import Imperial College Data
-```{r IHME_import, echo=TRUE}
-rm( list = ls())
+```{r IC_import, echo=TRUE}
+#rm( list = ls())
 # Create a list of the file names
 files <- list.files(path = "../Data/ImperialCollege/",  pattern = ".csv")
 # Use grep() function to select strings starting with "myfile"
@@ -58,7 +60,13 @@ ic_stack <- read.csv(selected)
 View(ic_stack)
 
 ic_long <-
-  ic_stack %>% filter()
+  ic_stack %>% 
+  select(date, compartment, y_mean, y_025, y_975, fit_type, 
+         death_calibrated, country, iso3c) %>%
+  filter(compartment == "deaths" | compartment == "infections")
+names(ic_long) <- paste0("ic_", names(ic_long))
+
+
 #names(data_stack) <- 
 #  c("location", "country_code", "Date", "infections_mean", "infections_lower", "infections_upper", "cases_mean_7d")
 #data_stack["case_ascert"] = data_stack["cases_mean_7d"]/data_stack["infections_mean"]
@@ -66,6 +74,19 @@ ic_long <-
 #  (read.xlsx("location_list.xlsx", sheet = "Regions"))
 
 ```
+
+
+a <- ihme_stack[["ihme_country_code"]] %>% sort() %>% unique() 
+b <- ic_long[["ic_iso3c"]] %>% sort() %>% unique()
+c <- intersect(a, b); c
+length(a); length(b); length(c)
+(c %in% b) %>% table()
+
+ic_long %>% spread(ic_date, ic_iso3c, ic_compartment, ic_fit_type ) %>% View()
+
+[1] "ic_date"             "ic_compartment"      "ic_y_mean"           "ic_y_025"           
+[5] "ic_y_975"            "ic_fit_type"         "ic_death_calibrated" "ic_country"         
+[9] "ic_iso3c"
 
 
 ```{r summarize_ihme, echo=TRUE}
