@@ -66,27 +66,27 @@ ic_long <-
   filter(compartment == "deaths" | compartment == "infections")
 names(ic_long) <- paste0("ic_", names(ic_long))
 
-
-#names(data_stack) <- 
-#  c("location", "country_code", "Date", "infections_mean", "infections_lower", "infections_upper", "cases_mean_7d")
-#data_stack["case_ascert"] = data_stack["cases_mean_7d"]/data_stack["infections_mean"]
-#regions <- #load a curated list of countries by location
-#  (read.xlsx("location_list.xlsx", sheet = "Regions"))
+#convert wide to long format
+ic_wide <- 
+  ic_long %>%
+  pivot_wider(id_cols = c("ic_date", "ic_country", "ic_iso3c"),
+              names_from = c("ic_compartment", "ic_fit_type"),
+              values_from = c("ic_y_mean", "ic_y_025", "ic_y_975")
+              )
 
 ```
 
+```{r merge_ic_IHME, echo=TRUE}
+#convert wide to long format
+ic_wide <- 
+  ic_long %>%
+  pivot_wider(id_cols = c("ic_date", "ic_country", "ic_iso3c"),
+              names_from = c("ic_compartment", "ic_fit_type"),
+              values_from = c("ic_y_mean", "ic_y_025", "ic_y_975")
+              )
+```
 
-a <- ihme_stack[["ihme_country_code"]] %>% sort() %>% unique() 
-b <- ic_long[["ic_iso3c"]] %>% sort() %>% unique()
-c <- intersect(a, b); c
-length(a); length(b); length(c)
-(c %in% b) %>% table()
 
-ic_long %>% spread(ic_date, ic_iso3c, ic_compartment, ic_fit_type ) %>% View()
-
-[1] "ic_date"             "ic_compartment"      "ic_y_mean"           "ic_y_025"           
-[5] "ic_y_975"            "ic_fit_type"         "ic_death_calibrated" "ic_country"         
-[9] "ic_iso3c"
 
 
 ```{r summarize_ihme, echo=TRUE}
