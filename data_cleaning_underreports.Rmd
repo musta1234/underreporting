@@ -90,12 +90,33 @@ stats_country_ranks <-
   mutate(completeness_rank = rank(nazero_daily_cases, ties.method = "random"))
 
 #generate summary stats by one or two grouping variables
-summarize_ihme <- function(ihme_data, var1, var2 = ""){
+summarize_ihme_backup <- function(ihme_data, var1, var2 = ""){
   ihme_data %>%
     filter(!is.na(daily_cases_7d)) %>% 
     group_by({{var1}}, {{var2}}) %>% 
     summarize(
       n = sum(!is.na(case_ascetainment)),
+      min_date = min(as.Date(date), na.rm = TRUE),
+      max_date = max(as.Date(date), na.rm = TRUE),
+      mean = mean(case_ascetainment, na.rm = TRUE),
+      max = max(case_ascetainment, na.rm = TRUE),
+      min = min(case_ascetainment, na.rm = TRUE),
+      median = median(case_ascetainment, na.rm = TRUE),
+      upper_quartile = quantile(case_ascetainment, 0.75,na.rm = TRUE),
+      lower_quartile = quantile(case_ascetainment, 0.25, na.rm = TRUE)
+  )
+}
+
+summarize_ihme <- function(ihme_data, var1, var2 = ""){
+  ihme_data %>%
+    #filter(!is.na(daily_cases_7d)) %>% 
+    group_by({{var1}}, {{var2}}) %>% 
+    summarize(
+      n_ascert = sum(!is.na(case_ascetainment)),
+      n_daily_cases = sum(!is.na(daily_cases)),
+      NAs = sum(is.na(daily_cases)),
+      n_zeros = sum(!is.na(daily_cases) & (daily_cases == 0)),
+      n_1to9 = sum(!is.na(daily_cases) & (daily_cases <10) & (daily_cases >0)),
       min_date = min(as.Date(date), na.rm = TRUE),
       max_date = max(as.Date(date), na.rm = TRUE),
       mean = mean(case_ascetainment, na.rm = TRUE),
